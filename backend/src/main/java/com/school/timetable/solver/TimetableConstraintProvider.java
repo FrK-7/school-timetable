@@ -6,6 +6,10 @@ import ai.timefold.solver.core.api.score.stream.ConstraintFactory;
 import ai.timefold.solver.core.api.score.stream.ConstraintProvider;
 import ai.timefold.solver.core.api.score.stream.Joiners;
 
+import java.util.List;
+
+import static ai.timefold.solver.core.api.score.stream.ConstraintCollectors.*;
+
 public class TimetableConstraintProvider implements ConstraintProvider {
 
     @Override
@@ -19,9 +23,11 @@ public class TimetableConstraintProvider implements ConstraintProvider {
                 minimumConsecutiveHard(factory),
                 teacherDayOffHard(factory),
                 teacherAvailabilityHard(factory),
+                maxGapsPerDayHard(factory),
                 // Soft constraints (strongly recommended)
                 minimumConsecutiveSoft(factory),
                 teacherGapsWeighted(factory),
+                compactHoursForPartTimeTeachers(factory),
                 minimizePlessoChanges(factory),
                 groupLessonsInSamePlesso(factory),
                 teacherDayOffSoft(factory),
@@ -143,6 +149,28 @@ public class TimetableConstraintProvider implements ConstraintProvider {
                 .asConstraint("Teacher availability (mandatory)");
     }
 
+    // Hard: max 2 gaps per day per teacher
+    // gaps = (lastHour - firstHour + 1) - lessonCount
+    Constraint maxGapsPerDayHard(ConstraintFactory factory) {
+        return factory.forEach(Lesson.class)
+                .groupBy(Lesson::getTeacherId, Lesson::getDay, toList())
+                .filter((teacherId, day, lessons) -> {
+                    int minH = lessons.stream().mapToInt(Lesson::getHour).min().orElse(0);
+                    int maxH = lessons.stream().mapToInt(Lesson::getHour).max().orElse(0);
+                    int span = maxH - minH + 1;
+                    int gaps = span - lessons.size();
+                    return gaps > 2;
+                })
+                .penalize(HardSoftScore.ONE_HARD,
+                        (teacherId, day, lessons) -> {
+                            int minH = lessons.stream().mapToInt(Lesson::getHour).min().orElse(0);
+                            int maxH = lessons.stream().mapToInt(Lesson::getHour).max().orElse(0);
+                            int span = maxH - minH + 1;
+                            return (span - lessons.size()) - 2;
+                        })
+                .asConstraint("Max 2 gaps per day per teacher");
+    }
+
     // === SOFT CONSTRAINTS (strongly recommended) ===
 
     // Minimize teacher gaps - penalize proportionally to gap size
@@ -171,6 +199,18 @@ public class TimetableConstraintProvider implements ConstraintProvider {
                             return gap * gap; // quadratic penalty: 1gap=1, 2gap=4, 3gap=9
                         })
                 .asConstraint("Teacher gaps (weighted)");
+    }
+
+    // Soft: penalizes days where a teacher has only 1 or 2 hours.
+    // Encourages compacting lessons into fewer days with more hours each.
+    // Weight 8: stronger than gap penalty, so solver prefers full days over spread-out days.
+    Constraint compactHoursForPartTimeTeachers(ConstraintFactory factory) {
+        return factory.forEach(Lesson.class)
+                .groupBy(Lesson::getTeacherId, Lesson::getDay, count())
+                .filter((teacherId, day, dailyCount) -> dailyCount <= 2)
+                .penalize(HardSoftScore.of(0, 8),
+                        (teacherId, day, dailyCount) -> 3 - dailyCount)
+                .asConstraint("Compact hours for part-time teachers");
     }
 
     // Minimize plesso changes in a day: penalize each pair of lessons in different plessi on same day

@@ -37,4 +37,12 @@ public class Lesson {
         this.className = className;
         this.plessoId = plessoId;
     }
+
+    public int getDay() {
+        return timeslot != null ? timeslot.getDay() : -1;
+    }
+
+    public int getHour() {
+        return timeslot != null ? timeslot.getHour() : -1;
+    }
 }
