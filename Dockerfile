@@ -21,4 +21,4 @@ WORKDIR /app
 RUN mkdir -p /app/data
 COPY --from=backend-build /app/target/*.jar app.jar
 EXPOSE 8080
-ENTRYPOINT ["java", "-Xmx512m", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-Xmx512m", "-Dspring.profiles.active=prod", "-jar", "app.jar"]
