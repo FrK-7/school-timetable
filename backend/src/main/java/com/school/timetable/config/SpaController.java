@@ -1,13 +1,14 @@
 package com.school.timetable.config;
 
+import org.springframework.boot.web.servlet.error.ErrorController;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 @Controller
-public class SpaController {
+public class SpaController implements ErrorController {
 
-    @RequestMapping(value = {"/", "/{path:^(?!api|h2-console).*$}/**"})
-    public String forward() {
+    @RequestMapping("/error")
+    public String handleError() {
         return "forward:/index.html";
     }
 }
