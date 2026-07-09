@@ -10,7 +10,11 @@ import type {
   TimetableSolution,
 } from '../types';
 
-const api = axios.create({ baseURL: window.location.origin + '/api' });
+const baseURL = import.meta.env.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL}/api`
+    : `${window.location.origin}/api`;
+
+const api = axios.create({ baseURL });
 
 export const configApi = {
   get: () => api.get<SchoolConfig>('/config').then(r => r.data),
